@@ -1,5 +1,7 @@
 const axios = require('axios')
 const WebSocket = require('ws')
+const io = require('socket.io-client')
+const eio = require('engine.io-client')
 
 const noteId = '23ELFLijTiSDjoZ1VPwvBQ'
 const noteUrl = `https://hackmd.io/${noteId}`
@@ -14,27 +16,26 @@ axios.get(noteUrl)
       .then( (res) => {
         const nextBaseUrl = res.data.url
         console.log(nextBaseUrl)
-        axios.get(`${nextBaseUrl}/socket.io/?noteId=${noteId}&EIO=3&transport=polling`, options)
-          .then( (res) => {
-            const wsData = JSON.parse(res.data.slice(4))
-            const sid = wsData.sid
-            const pingInterval = wsData.pingInterval
-            console.log(sid)
-            axios.get(`${nextBaseUrl}/socket.io/?noteId=${noteId}&EIO=3&transport=polling&sid=${sid}`, options)
-              .then( (res) => {
-                // Slice https from nextBaseUrl
-                const ws = new WebSocket(`wss://${nextBaseUrl.slice(8)}/socket.io/?noteId=${noteId}&EIO=3&transport=websocket&sid=${sid}`, options)
-                ws.on('open', function open() {
-                  console.log('connected')
-                  ws.send('2probe');
-                });
-                ws.on('close', function close() {
-                  console.log('disconnected')
-                })
-                ws.on('message', function incoming(data) {
-                  console.log(data);
-                });
-              })
+        // Couldn't get socket.io client working, just raw engine.io
+        const socket = eio(nextBaseUrl, {
+          path: '/realtime-4/socket.io/',
+          query: { noteId: noteId },
+          transportOptions: {
+            polling: {
+              extraHeaders: {
+                Cookie: cookieString,
+              },
+            },
+          },
+          timeout: 5000,
+          reconnectionAttempts: 20,
+        })
+        socket.on('open', () => {
+          socket.on('message', (data) => {
+            // Seems that hackmd modified dictionary keys, as they all say "ping".
+            const parser = require('engine.io-parser')
+            console.log(parser.decodePacket(data))
           })
+        })
       })
   })
