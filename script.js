@@ -32,9 +32,37 @@ axios.get(noteUrl)
         })
         socket.on('open', () => {
           socket.on('message', (data) => {
-            // Seems that hackmd modified dictionary keys, as they all say "ping".
-            const parser = require('engine.io-parser')
-            console.log(parser.decodePacket(data))
+            var parser = require('socket.io-parser')
+            const decoder = new parser.Decoder()
+            decoder.on('decoded', (decodedPacket) => {
+              console.log(decodedPacket)
+              if (decodedPacket.data) {
+                console.log(decodedPacket.data[0])
+                if (decodedPacket.data[0] == "doc") {
+                  var encoder = new parser.Encoder()
+                  // Construct a packet for deleting the whole doc
+                  packet = {
+                    type: 2,
+                    data: ['operation', 0, [-decodedPacket.data[1].str.length], {"ranges": [{"anchor": 0, "head": 0}]}]
+                  }
+                  encoder.encode(packet, function(encodedPacket) {
+                    socket.send(encodedPacket)
+                    const newTemplate = 'dasdadadasda\n\nasdasdadas'
+                    // Contruct packet with template override
+                    packet = {
+                      type: 2,
+                      data: ['operation', 1, [newTemplate], {"ranges": [{"anchor": 0, "head": 0}]}]
+                    }
+                    encoder.encode(packet, function(encodedPacket) {
+                      socket.send(encodedPacket)
+                    })
+                  })
+                } else {
+                  console.log(decodedPacket.data[1])
+                }
+              }
+            })
+            decoder.add(data)
           })
         })
       })
